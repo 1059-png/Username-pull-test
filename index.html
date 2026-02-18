@@ -100,7 +100,7 @@
 </head>
 <body>
 <div class="card">
-  <div class="version">v3</div>
+  <div class="version">v4</div>
 
   <div class="row">
     <div class="label">Customer ID</div>
@@ -114,11 +114,13 @@
 
   <div class="status-row">
     <div class="dot waiting" id="dot"></div>
-    <div class="status-text" id="status">Listening for LiveChat data...</div>
+    <div class="status-text" id="status">Connecting...</div>
   </div>
 </div>
 
 <script>
+  const LC_ORIGIN = 'https://secure.livechatinc.com';
+
   function extractIds(url) {
     const match = url && url.match(/\/chats\/([^/?#]+)\/([^/?#]+)/);
     if (match) return { chatId: match[1], customerId: match[2] };
@@ -133,30 +135,46 @@
     document.getElementById('status').textContent      = 'Live';
   }
 
+  // Step 1: send postmate handshake to parent so LiveChat starts talking to us
+  window.parent.postMessage({
+    postmate: 'handshake',
+    type: 'application/x-postmate-v1+json',
+    model: {}
+  }, LC_ORIGIN);
+
+  // Step 2: listen for messages from LiveChat
   window.addEventListener('message', function(e) {
-    if (!e.origin.includes('livechat')) return;
+    if (e.origin !== LC_ORIGIN) return;
 
     try {
       const msg = e.data?.value;
       if (!msg) return;
 
-      // Full state event
+      // state_diff fires when you switch chats — fast and lightweight
+      if (msg.name === 'state_diff') {
+        const url = msg.data?.application?.page?.url;
+        if (url) updateDisplay(extractIds(url));
+      }
+
+      // store_event is the full state dump — catches initial load
       if (msg.name === 'store_event') {
         const state = msg.data?.[1];
         const url   = state?.page?.url;
         if (url) updateDisplay(extractIds(url));
       }
 
-      // Diff event — fires when you switch chats
-      if (msg.name === 'state_diff') {
-        const url = msg.data?.application?.page?.url;
-        if (url) updateDisplay(extractIds(url));
-      }
-
     } catch(err) {
-      // silently ignore malformed messages
+      // ignore malformed messages
     }
   });
+
+  // Show "waiting" if nothing comes in after 5s
+  setTimeout(function() {
+    if (document.getElementById('status').textContent === 'Connecting...') {
+      document.getElementById('dot').className = 'dot error';
+      document.getElementById('status').textContent = 'No data received';
+    }
+  }, 5000);
 </script>
 </body>
 </html>
