@@ -120,10 +120,11 @@
 
 <script>
   // ============================================================
-  // INSERT YOUR PERSONAL ACCESS TOKEN HERE
+  // INSERT YOUR BASE64 ENCODED TOKEN HERE
   // LiveChat → Settings → API & Webhooks → Personal Access Tokens
+  // Copy the "Base64 Encoded Token" value (not the regular token)
   // ============================================================
-  const PAT = 'us-south1:GrOhPl9v1uN6Y9T-MCjzoJgGIME';
+  const PAT = 'MTIwNTZkYWYtYjFhNS00MTFkLWE2N2UtZGY2OGE5ZTVkNmM5OnVzLXNvdXRoMTpHck9oUGw5djF1TjZZOVQtTUNqem9KZ0dJTUU=';
   // ============================================================
 
   const LICENCE = '19460492';
@@ -146,14 +147,10 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + PAT,
+          'Authorization': 'Basic ' + PAT,
           'X-Account-Id': '12056daf-b1a5-411d-a67e-df68a9e5d6c9'
         },
-        body: JSON.stringify({
-          filters: { assigned: true },
-          limit: 1,
-          sort_order: 'desc'
-        })
+        body: JSON.stringify({ filters: {}, limit: 5 })
       });
 
       if (!res.ok) throw new Error('API error: ' + res.status);
