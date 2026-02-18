@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Customer Widget</title>
+  <script src="https://cdn.livechatinc.com/agent-app-sdk/agent-app-sdk.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;500&display=swap');
 
@@ -84,19 +85,39 @@
       flex-shrink: 0;
       transition: background 0.3s;
     }
-    .dot.success { background: #4ff77e; }
-    .dot.error   { background: #f74f4f; }
+    .dot.waiting  { background: #f7a24f; animation: pulse 1s infinite; }
+    .dot.success  { background: #4ff77e; }
+    .dot.error    { background: #f74f4f; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
 
     .status-text {
       font-size: 10px;
       color: #555a72;
       font-family: 'IBM Plex Mono', monospace;
     }
+
+    .debug {
+      margin-top: 12px;
+      padding: 8px;
+      background: #0f1117;
+      border-radius: 4px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      color: #333749;
+      word-break: break-all;
+      white-space: pre-wrap;
+      max-height: 120px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
 <div class="card">
-  <div class="version">v1</div>
+  <div class="version">v2</div>
 
   <div class="row">
     <div class="label">Customer ID</div>
@@ -104,31 +125,55 @@
   </div>
 
   <div class="row">
-    <div class="label">Chat ID</div>
-    <div class="value" id="chat-id">—</div>
+    <div class="label">Customer Name</div>
+    <div class="value" id="customer-name">—</div>
   </div>
 
   <div class="status-row">
-    <div class="dot" id="dot"></div>
-    <div class="status-text" id="status"></div>
+    <div class="dot waiting" id="dot"></div>
+    <div class="status-text" id="status">Waiting for SDK...</div>
   </div>
+
+  <!-- raw dump so we can see exactly what comes back -->
+  <div class="debug" id="debug"></div>
 </div>
 
 <script>
-  const params = new URLSearchParams(window.location.search);
-  const customerId = params.get('customer_id');
-  const chatId     = params.get('chat_id');
+  function setState(state, message) {
+    document.getElementById('dot').className = 'dot ' + state;
+    document.getElementById('status').textContent = message;
+  }
 
-  if (customerId || chatId) {
-    document.getElementById('customer-id').textContent = customerId || '(not provided)';
-    document.getElementById('chat-id').textContent     = chatId     || '(not provided)';
-    document.getElementById('dot').className = 'dot success';
-    document.getElementById('status').textContent = 'IDs received from LiveChat';
+  function log(msg) {
+    const d = document.getElementById('debug');
+    d.textContent += msg + '\n';
+  }
+
+  if (typeof AgentApp === 'undefined') {
+    setState('error', 'SDK not loaded');
+    log('AgentApp SDK not found on window');
   } else {
-    document.getElementById('customer-id').textContent = 'No ID in URL';
-    document.getElementById('chat-id').textContent     = 'No ID in URL';
-    document.getElementById('dot').className = 'dot error';
-    document.getElementById('status').textContent = 'No params found — check widget URL config';
+    log('SDK found — creating widget...');
+
+    AgentApp.createDetailsWidget().then(widget => {
+      log('Widget created — waiting for customer_profile event...');
+      setState('waiting', 'Widget ready, waiting for data...');
+
+      widget.on('customer_profile', data => {
+        log('customer_profile fired:\n' + JSON.stringify(data, null, 2));
+
+        const id   = data?.id   || data?.customer_id || '(not found)';
+        const name = data?.name || data?.customer_name || '(not found)';
+
+        document.getElementById('customer-id').textContent   = id;
+        document.getElementById('customer-name').textContent = name;
+        setState('success', 'Data received via SDK');
+      });
+
+    }).catch(err => {
+      setState('error', 'SDK error: ' + err.message);
+      log('Error: ' + err.message);
+    });
   }
 </script>
 </body>
