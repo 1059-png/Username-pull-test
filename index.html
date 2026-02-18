@@ -14,8 +14,6 @@
       background: #0f1117;
       color: #e8eaf0;
       min-height: 100vh;
-      display: flex;
-      align-items: flex-start;
       padding: 16px;
     }
 
@@ -47,25 +45,57 @@
       font-weight: 600;
     }
 
-    .label {
+    .customer-name {
+      font-size: 18px;
+      font-weight: 500;
+      color: #e8eaf0;
+      margin-bottom: 4px;
+    }
+
+    .customer-id {
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 9px;
-      letter-spacing: 0.15em;
+      font-size: 11px;
+      color: #4f8ef7;
+      margin-bottom: 16px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2a2d3a;
+      margin: 12px 0;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .field {
+      background: #0f1117;
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .field-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: #555a72;
-      margin-bottom: 6px;
+      margin-bottom: 3px;
     }
 
-    .value {
+    .field-value {
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 16px;
+      font-size: 13px;
       font-weight: 600;
       color: #e8eaf0;
-      word-break: break-all;
-      min-height: 24px;
     }
 
-    .row { margin-bottom: 12px; }
+    .field-value.good  { color: #4ff77e; }
+    .field-value.bad   { color: #f74f4f; }
+    .field-value.warn  { color: #f7a24f; }
 
     .status-row {
       display: flex;
@@ -80,7 +110,6 @@
       width: 7px; height: 7px;
       border-radius: 50%;
       flex-shrink: 0;
-      transition: background 0.3s;
     }
     .dot.waiting { background: #f7a24f; animation: pulse 1s infinite; }
     .dot.success { background: #4ff77e; }
@@ -100,16 +129,50 @@
 </head>
 <body>
 <div class="card">
-  <div class="version">v5</div>
+  <div class="version">v6</div>
 
-  <div class="row">
-    <div class="label">Customer ID</div>
-    <div class="value" id="customer-id">—</div>
-  </div>
+  <div class="customer-name" id="customer-name">—</div>
+  <div class="customer-id" id="account-number">—</div>
 
-  <div class="row">
-    <div class="label">Chat ID</div>
-    <div class="value" id="chat-id">—</div>
+  <hr class="divider">
+
+  <div class="fields">
+    <div class="field">
+      <div class="field-label">KYC</div>
+      <div class="field-value" id="kyc">—</div>
+    </div>
+    <div class="field">
+      <div class="field-label">VIP</div>
+      <div class="field-value" id="vip">—</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Player Class</div>
+      <div class="field-value" id="player-class">—</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Pending WD</div>
+      <div class="field-value" id="pending-wd">—</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Bonus Offer</div>
+      <div class="field-value" id="bonus-offer">—</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Bonus Active</div>
+      <div class="field-value" id="bonus-active">—</div>
+    </div>
+    <div class="field">
+      <div class="field-label">WD Day</div>
+      <div class="field-value" id="wd-day">—</div>
+    </div>
+    <div class="field">
+      <div class="field-label">WD Week</div>
+      <div class="field-value" id="wd-week">—</div>
+    </div>
+    <div class="field" style="grid-column: span 2">
+      <div class="field-label">WD Month</div>
+      <div class="field-value" id="wd-month">—</div>
+    </div>
   </div>
 
   <div class="status-row">
@@ -122,65 +185,114 @@
   // ============================================================
   // INSERT YOUR BASE64 ENCODED TOKEN HERE
   // LiveChat → Settings → API & Webhooks → Personal Access Tokens
-  // Copy the "Base64 Encoded Token" value (not the regular token)
+  // Copy the "Base64 Encoded Token" value
   // ============================================================
   const PAT = 'MTIwNTZkYWYtYjFhNS00MTFkLWE2N2UtZGY2OGE5ZTVkNmM5OnVzLXNvdXRoMTpHck9oUGw5djF1TjZZOVQtTUNqem9KZ0dJTUU=';
   // ============================================================
 
-  const LICENCE = '19460492';
-  const API     = 'https://api.livechatinc.com/v3.5/agent/action';
+  const API = 'https://api.livechatinc.com/v3.5/agent/action';
 
   function setState(state, msg) {
-    document.getElementById('dot').className    = 'dot ' + state;
+    document.getElementById('dot').className = 'dot ' + state;
     document.getElementById('status').textContent = msg;
   }
 
-  // Get chat ID from the URL LiveChat loaded us with
-  // e.g. https://1059-png.github.io/Username-pull-test/?...
-  // We'll extract it from the plugin context via the API instead
-  async function fetchActiveChat() {
-    setState('waiting', 'Fetching chats...');
+  function colorBool(id, val) {
+    const el = document.getElementById(id);
+    el.textContent = val;
+    el.className = 'field-value ' + (val === 'TRUE' ? 'good' : val === 'FALSE' ? 'bad' : '');
+  }
 
+  // Get the current chat ID from the LiveChat URL via postmate handshake
+  let currentChatId = null;
+
+  window.parent.postMessage({
+    postmate: 'handshake',
+    type: 'application/x-postmate-v1+json',
+    model: {}
+  }, 'https://secure.livechatinc.com');
+
+  window.addEventListener('message', function(e) {
+    if (e.origin !== 'https://secure.livechatinc.com') return;
     try {
-      // List chats the agent is currently handling
-      const res = await fetch(API + '/list_chats', {
+      const msg = e.data?.value;
+      if (!msg) return;
+      let url = null;
+      if (msg.name === 'state_diff') url = msg.data?.application?.page?.url;
+      if (msg.name === 'store_event') url = msg.data?.[1]?.page?.url;
+      if (url) {
+        const match = url.match(/\/chats\/([^/?#]+)/);
+        if (match && match[1] !== currentChatId) {
+          currentChatId = match[1];
+          fetchChat(currentChatId);
+        }
+      }
+    } catch(e) {}
+  });
+
+  async function fetchChat(chatId) {
+    setState('waiting', 'Fetching chat ' + chatId + '...');
+    try {
+      const res = await fetch(API + '/get_chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Basic ' + PAT,
-          'X-Account-Id': '12056daf-b1a5-411d-a67e-df68a9e5d6c9'
+          'Authorization': 'Basic ' + PAT
         },
-        body: JSON.stringify({ filters: {}, limit: 5 })
+        body: JSON.stringify({ chat_id: chatId })
       });
 
       if (!res.ok) throw new Error('API error: ' + res.status);
-
       const data = await res.json();
-      console.log('API response:', data);
+      const customer = data.users?.find(u => u.type === 'customer');
+      if (!customer) { setState('error', 'No customer in chat'); return; }
 
-      const chat = data?.chats?.[0];
-      if (!chat) {
-        setState('error', 'No active chats found');
-        return;
-      }
+      // Helper to get session field value
+      const sf = (key) => {
+        const f = customer.session_fields?.find(o => o[key] !== undefined);
+        return f ? f[key] : '—';
+      };
 
-      const chatId     = chat.id;
-      const customerId = chat.users?.find(u => u.type === 'customer')?.id || '(not found)';
+      document.getElementById('customer-name').textContent    = customer.name || '—';
+      document.getElementById('account-number').textContent   = 'ID: ' + sf('default_QuestionTestaccountnumber');
+      colorBool('kyc',          sf('KYC'));
+      colorBool('vip',          sf('VIP_Binary'));
+      document.getElementById('player-class').textContent     = sf('Player_Class');
+      colorBool('pending-wd',   sf('Pending_WD'));
+      document.getElementById('bonus-offer').textContent      = sf('Bonus_offer');
+      colorBool('bonus-active', sf('Bonus_active'));
+      document.getElementById('wd-day').textContent           = sf('Withdraw_limit_day');
+      document.getElementById('wd-week').textContent          = sf('Withdraw_limit_week');
+      document.getElementById('wd-month').textContent         = sf('Withdraw_limit_month');
 
-      document.getElementById('chat-id').textContent     = chatId;
-      document.getElementById('customer-id').textContent = customerId;
-      setState('success', 'Loaded');
+      setState('success', 'Updated ' + new Date().toLocaleTimeString());
 
     } catch(err) {
-      console.error(err);
       setState('error', err.message);
     }
   }
 
-  fetchActiveChat();
-
-  // Refresh every 5 seconds to track chat switching
-  setInterval(fetchActiveChat, 5000);
+  // Fallback: if postmate doesn't fire, poll list_chats
+  setTimeout(async function() {
+    if (!currentChatId) {
+      setState('waiting', 'Polling...');
+      try {
+        const res = await fetch(API + '/list_chats', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Basic ' + PAT
+          },
+          body: JSON.stringify({ filters: {}, limit: 1 })
+        });
+        const data = await res.json();
+        const chat = data?.chats_summary?.[0];
+        if (chat?.id) fetchChat(chat.id);
+      } catch(e) {
+        setState('error', 'Fallback failed: ' + e.message);
+      }
+    }
+  }, 3000);
 </script>
 </body>
 </html>
