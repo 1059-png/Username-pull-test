@@ -37,6 +37,16 @@
       background: linear-gradient(90deg, #4f8ef7, #a78bfa);
     }
 
+    .version {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: #a78bfa;
+      text-align: right;
+      margin-bottom: 12px;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+    }
+
     .label {
       font-family: 'IBM Plex Mono', monospace;
       font-size: 9px;
@@ -46,139 +56,80 @@
       margin-bottom: 6px;
     }
 
-    .name {
+    .value {
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 600;
       color: #e8eaf0;
-      letter-spacing: -0.02em;
-      min-height: 28px;
+      word-break: break-all;
+      min-height: 24px;
+    }
+
+    .row {
+      margin-bottom: 12px;
     }
 
     .status-row {
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-top: 12px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid #2a2d3a;
     }
 
     .dot {
-      width: 7px;
-      height: 7px;
+      width: 7px; height: 7px;
       border-radius: 50%;
-      background: #555a72;
       flex-shrink: 0;
       transition: background 0.3s;
     }
-    .dot.loading { background: #f7a24f; animation: pulse 1s infinite; }
     .dot.success { background: #4ff77e; }
     .dot.error   { background: #f74f4f; }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.3; }
-    }
-
     .status-text {
-      font-size: 11px;
-      color: #555a72;
-      font-family: 'IBM Plex Mono', monospace;
-    }
-
-    .cid {
-      margin-top: 10px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 9px;
-      color: #333749;
-      word-break: break-all;
-    }
-
-    .retry-btn {
-      margin-top: 12px;
-      padding: 5px 12px;
-      background: transparent;
-      border: 1px solid #2a2d3a;
-      border-radius: 4px;
-      color: #555a72;
-      font-family: 'IBM Plex Mono', monospace;
       font-size: 10px;
-      cursor: pointer;
-      display: none;
-      transition: all 0.2s;
+      color: #555a72;
+      font-family: 'IBM Plex Mono', monospace;
     }
-    .retry-btn:hover { border-color: #4f8ef7; color: #4f8ef7; }
   </style>
 </head>
 <body>
 <div class="card">
-  <div class="label">Customer</div>
-  <div class="name" id="name">—</div>
+  <div class="version">v1</div>
 
-  <div class="status-row">
-    <div class="dot loading" id="dot"></div>
-    <div class="status-text" id="status">Fetching...</div>
+  <div class="row">
+    <div class="label">Customer ID</div>
+    <div class="value" id="customer-id">—</div>
   </div>
 
-  <div class="cid" id="cid"></div>
-  <button class="retry-btn" id="retry" onclick="init()">↺ Retry</button>
+  <div class="row">
+    <div class="label">Chat ID</div>
+    <div class="value" id="chat-id">—</div>
+  </div>
+
+  <div class="status-row">
+    <div class="dot" id="dot"></div>
+    <div class="status-text" id="status"></div>
+  </div>
 </div>
 
 <script>
-  const WEBHOOK = 'https://hook.eu1.make.com/5r7xuof15flajr8p1klykwbg1s6pw27d';
+  const params = new URLSearchParams(window.location.search);
+  const customerId = params.get('customer_id');
+  const chatId     = params.get('chat_id');
 
-  function getCustomerId() {
-    const params = new URLSearchParams(window.location.search);
-    const customerId = params.get('customer_id');
-    const chatId = params.get('chat_id');
-    if (customerId) return { chatId, customerId };
-    return null;
+  if (customerId || chatId) {
+    document.getElementById('customer-id').textContent = customerId || '(not provided)';
+    document.getElementById('chat-id').textContent     = chatId     || '(not provided)';
+    document.getElementById('dot').className = 'dot success';
+    document.getElementById('status').textContent = 'IDs received from LiveChat';
+  } else {
+    document.getElementById('customer-id').textContent = 'No ID in URL';
+    document.getElementById('chat-id').textContent     = 'No ID in URL';
+    document.getElementById('dot').className = 'dot error';
+    document.getElementById('status').textContent = 'No params found — check widget URL config';
   }
-
-  function setState(state, message) {
-    const dot = document.getElementById('dot');
-    const status = document.getElementById('status');
-    dot.className = 'dot ' + state;
-    status.textContent = message;
-    document.getElementById('retry').style.display = state === 'error' ? 'block' : 'none';
-  }
-
-  async function init() {
-    setState('loading', 'Fetching...');
-    document.getElementById('name').textContent = '—';
-    document.getElementById('cid').textContent = '';
-
-    const ids = getCustomerId();
-    if (!ids) {
-      setState('error', 'No customer ID found in URL');
-      return;
-    }
-
-    document.getElementById('cid').textContent = 'id: ' + ids.customerId;
-
-    try {
-      const res = await fetch(WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_id: ids.customerId, chat_id: ids.chatId })
-      });
-
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-
-      const data = await res.json();
-      console.log('Webhook response:', data);
-
-      // Try common name fields
-      const name = data.default_name || data.name || data.customer_name || data.username || '(no name)';
-      document.getElementById('name').textContent = name;
-      setState('success', 'Loaded');
-
-    } catch(err) {
-      console.error('Webhook error:', err);
-      setState('error', 'Webhook error: ' + err.message);
-    }
-  }
-
-  init();
 </script>
 </body>
 </html>
