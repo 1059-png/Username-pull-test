@@ -127,15 +127,10 @@
   const WEBHOOK = 'https://hook.eu1.make.com/5r7xuof15flajr8p1klykwbg1s6pw27d';
 
   function getCustomerId() {
-    // Try parent URL first (widget iframe context)
-    let url;
-    try {
-      url = window.parent.location.href;
-    } catch(e) {
-      url = window.location.href;
-    }
-    const match = url.match(/\/chats\/([^/]+)\/([^/?#]+)/);
-    if (match) return { chatId: match[1], customerId: match[2] };
+    const params = new URLSearchParams(window.location.search);
+    const customerId = params.get('customer_id');
+    const chatId = params.get('chat_id');
+    if (customerId) return { chatId, customerId };
     return null;
   }
 
