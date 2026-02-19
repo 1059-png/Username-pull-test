@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Customer Widget</title>
-    <script src="https://cdn.livechat-static.com/agent-app-sdk/1.1.0/index.umd.js"></script>
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;500&display=swap');
 
@@ -130,7 +128,7 @@
 </head>
 <body>
 <div class="card">
-  <div class="version">v8.1</div>
+  <div class="version">v9</div>
 
   <div class="customer-name" id="customer-name">—</div>
   <div class="customer-id" id="account-number">—</div>
@@ -193,7 +191,6 @@
   // ============================================================
 
   const API = 'https://api.livechatinc.com/v3.5/agent/action';
-  let currentChatId = null;
 
   function setState(state, msg) {
     document.getElementById('dot').className = 'dot ' + state;
@@ -244,7 +241,26 @@
     }
   }
 
-  async function pollLatestChat() {
+  function manualRefresh() {
+    if (window._lastChatId) {
+      fetchChat(window._lastChatId);
+    } else {
+      setState('error', 'No chat ID received yet');
+    }
+  }
+
+  // 👂 Listen for chat ID posted by Chrome extension
+  window.addEventListener('message', (event) => {
+    if (event.origin !== 'https://my.livechatinc.com') return;
+    if (event.data?.type === 'LC_CHAT_ID' && event.data?.chatId) {
+      console.log('[Widget] Received chat ID:', event.data.chatId);
+      window._lastChatId = event.data.chatId;
+      fetchChat(event.data.chatId);
+    }
+  });
+
+  // 🔁 Fallback on initial load — poll list_chats in case extension hasn't fired yet
+  (async () => {
     try {
       const res = await fetch(API + '/list_chats', {
         method: 'POST',
@@ -253,25 +269,14 @@
       });
       const data = await res.json();
       const chatId = data?.chats_summary?.[0]?.id;
-      if (chatId && chatId !== currentChatId) {
-        currentChatId = chatId;
+      if (chatId) {
+        window._lastChatId = chatId;
         fetchChat(chatId);
       }
-    } catch(e) {}
-  }
-
-  // 👇 Manual refresh nukes the cached ID so it always re-fetches
-  async function manualRefresh() {
-    currentChatId = null;
-    await pollLatestChat();
-  }
-  window.LiveChatWidgetSDK?.on('customer_profile', (data) => {
-    console.log('SDK fired!', data);
-    console.log('Chat ID:', data?.chat?.chatId);
-  });
-  // Initial load
-  pollLatestChat();
-  
+    } catch(e) {
+      setState('error', 'Initial load failed');
+    }
+  })();
 </script>
 </body>
 </html>
