@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Customer Widget</title>
+    <script src="https://cdn.livechat-static.com/agent-app-sdk/1.1.0/index.umd.js"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;500&display=swap');
 
@@ -263,9 +265,13 @@
     currentChatId = null;
     await pollLatestChat();
   }
-
+  window.LiveChatWidgetSDK?.on('customer_profile', (data) => {
+    console.log('SDK fired!', data);
+    console.log('Chat ID:', data?.chat?.chatId);
+  });
   // Initial load
   pollLatestChat();
+  
 </script>
 </body>
 </html>
